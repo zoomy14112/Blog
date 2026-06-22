@@ -28,11 +28,15 @@ export const GET: APIRoute = async ({ props, url }) => {
   }
 
   const fonts = fontData["--font-google-sans-code"];
-  const regularFontPath = getFontPathByWeight(fonts, 400);
-  const boldFontPath = getFontPathByWeight(fonts, 700);
+  const regularFontPath = fonts ? getFontPathByWeight(fonts, 400) : undefined;
+  const boldFontPath = fonts ? getFontPathByWeight(fonts, 700) : undefined;
 
+  // 字体不可用时回退到默认 OG 图片
   if (regularFontPath === undefined || boldFontPath === undefined) {
-    throw new Error("Cannot find the font path.");
+    return new Response(null, {
+      status: 307,
+      headers: { Location: "/default-og.jpg" },
+    });
   }
 
   const [regularData, boldData] = await Promise.all([
