@@ -2,7 +2,7 @@ import { defineAstroPaperConfig } from "./src/types/config";
 
 export default defineAstroPaperConfig({
   site: {
-    url: "https://zoomy14112.github.io/blog/",
+    url: "https://zoomy14112.github.io/",
     title: "Star-Project",
     author: "千秋星辰",
     description: "Note down the stars, and share the light.",
