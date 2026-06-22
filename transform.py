@@ -373,11 +373,11 @@ def main():
 
     # 1. 解析文件列表
     if not FILELIST_PATH.exists():
-        print(f"❌ Filelist 不存在: {FILELIST_PATH}")
+        print(f" Filelist 不存在: {FILELIST_PATH}")
         return 1
 
     files = parse_filelist(FILELIST_PATH)
-    print(f"📄 从 Filelist.txt 读取到 {len(files)} 个文件")
+    print(f" 从 Filelist.txt 读取到 {len(files)} 个文件")
     print()
 
     # 2. 清理旧的平铺文件和子目录（上次运行可能生成的）
