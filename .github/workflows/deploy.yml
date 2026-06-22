@@ -34,12 +34,17 @@ jobs:
       - name: "🏗️  Build"
         run: pnpm run build
 
+      - name: "📁  Move build to blog subdirectory"
+        run: |
+          mkdir -p publish
+          mv dist publish/blog
+
       - name: "🚀  Deploy to zoomy14112.github.io"
         uses: peaceiris/actions-gh-pages@v4
         with:
           personal_token: ${{ secrets.GH_PAT }}
           external_repository: zoomy14112/zoomy14112.github.io
           publish_branch: main
-          publish_dir: dist
-          force_orphan: false
-          commit_message: "Deploy: ${{ github.event.head_commit.message }}"
+          publish_dir: publish
+          keep_files: true
+          commit_message: "Deploy blog: ${{ github.event.head_commit.message }}"

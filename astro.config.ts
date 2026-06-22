@@ -23,7 +23,8 @@ import rehypeKatex from "rehype-katex";
 
 export default defineConfig({
   site: config.site.url,
-  
+  base: "/blog/",
+
   integrations: [
     mdx(),
     sitemap({
