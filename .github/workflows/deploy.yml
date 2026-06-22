@@ -27,8 +27,6 @@ jobs:
         uses: actions/setup-node@v4
         with:
           node-version: "24"
-          cache: "pnpm"
-          cache-dependency-path: blog/pnpm-lock.yaml
 
       - name: "📥  Install dependencies"
         working-directory: blog
