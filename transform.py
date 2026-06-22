@@ -323,6 +323,12 @@ def transform_standalone(src_path: Path, tags: list[str],
         m = re.search(r"^###\s+(.+)$", body, re.MULTILINE)
         title = clean_title(m[1].strip()) if m else src_path.stem
 
+    # 去掉正文中与 frontmatter 重复的标题行
+    body = re.sub(r"^###\s+.+\n+", "", body)           # ### 尘
+    body = re.sub(r"<h1>[^<]+</h1>\s*\n*", "", body)  # <h1>孤灯夜雪</h1>
+    body = re.sub(r"<p align=\"right\"><strong>[^<]+</strong></p>\s*\n*", "", body)  # 作者署名行
+    body = body.strip() + "\n"
+
     # 提取日期：优先中文日期，其次文本末尾日期，再次默认值
     date = extract_chinese_date(body) or extract_chinese_date(raw)
     description = extract_description(body)
