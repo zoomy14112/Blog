@@ -333,7 +333,7 @@ def transform_standalone(src_path: Path, tags: list[str],
         title_slug = re.sub(r"\s+", "-", src_path.stem.lower())
     file_name = f"{title_slug}.md"
 
-    fm = build_frontmatter(title, date, description, tags)
+    fm = build_frontmatter(title, date, description, tags, featured=True)
     output_content = fm + body
 
     return file_name, output_content, date
