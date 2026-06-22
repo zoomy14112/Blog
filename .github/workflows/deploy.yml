@@ -37,7 +37,7 @@ jobs:
       - name: "🚀  Deploy to zoomy14112.github.io"
         uses: peaceiris/actions-gh-pages@v4
         with:
-          deploy_key: ${{ secrets.BLOG_DEPLOY_KEY }}
+          personal_token: ${{ secrets.GH_PAT }}
           external_repository: zoomy14112/zoomy14112.github.io
           publish_branch: main
           publish_dir: dist
