@@ -29,11 +29,9 @@ jobs:
           node-version: "24"
 
       - name: "📥  Install dependencies"
-        working-directory: blog
         run: pnpm install --frozen-lockfile
 
       - name: "🏗️  Build"
-        working-directory: blog
         run: pnpm run build
 
       - name: "🚀  Deploy to zoomy14112.github.io"
@@ -42,6 +40,6 @@ jobs:
           deploy_key: ${{ secrets.BLOG_DEPLOY_KEY }}
           external_repository: zoomy14112/zoomy14112.github.io
           publish_branch: main
-          publish_dir: blog/dist
+          publish_dir: dist
           force_orphan: false
           commit_message: "Deploy: ${{ github.event.head_commit.message }}"
