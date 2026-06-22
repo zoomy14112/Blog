@@ -1,0 +1,49 @@
+name: Deploy to GitHub Pages
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:  # 允许手动触发
+
+permissions:
+  contents: read
+
+jobs:
+  build-and-deploy:
+    name: Build & Deploy
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+
+    steps:
+      - name: "☁️  Checkout repository"
+        uses: actions/checkout@v4
+
+      - name: "📦  Install pnpm"
+        uses: pnpm/action-setup@v4
+        with:
+          version: "11.3.0"
+
+      - name: "🔧  Use Node.js"
+        uses: actions/setup-node@v4
+        with:
+          node-version: "24"
+          cache: "pnpm"
+          cache-dependency-path: blog/pnpm-lock.yaml
+
+      - name: "📥  Install dependencies"
+        working-directory: blog
+        run: pnpm install --frozen-lockfile
+
+      - name: "🏗️  Build"
+        working-directory: blog
+        run: pnpm run build
+
+      - name: "🚀  Deploy to zoomy14112.github.io"
+        uses: peaceiris/actions-gh-pages@v4
+        with:
+          deploy_key: ${{ secrets.BLOG_DEPLOY_KEY }}
+          external_repository: zoomy14112/zoomy14112.github.io
+          publish_branch: main
+          publish_dir: blog/dist
+          force_orphan: false
+          commit_message: "Deploy: ${{ github.event.head_commit.message }}"

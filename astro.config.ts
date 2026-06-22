@@ -1,7 +1,7 @@
 import {
   defineConfig,
   envField,
-  fontProviders,
+  // fontProviders,
   svgoOptimizer,
 } from "astro/config";
 import tailwindcss from "@tailwindcss/vite";
@@ -18,9 +18,12 @@ import {
 } from "@shikijs/transformers";
 import { transformerFileName } from "./src/utils/transformers/fileName";
 import config from "./astro-paper.config";
+import remarkMath from "remark-math";
+import rehypeKatex from "rehype-katex";
 
 export default defineConfig({
   site: config.site.url,
+  
   integrations: [
     mdx(),
     sitemap({
@@ -38,10 +41,14 @@ export default defineConfig({
   markdown: {
     processor: unified({
       remarkPlugins: [
+        remarkMath,
         remarkToc,
         [remarkCollapse, { test: "Table of contents" }],
       ],
-      rehypePlugins: [rehypeCallouts],
+      rehypePlugins: [
+        rehypeKatex,
+        rehypeCallouts
+      ],
     }),
     shikiConfig: {
       themes: { light: "min-light", dark: "night-owl" },
@@ -58,17 +65,18 @@ export default defineConfig({
   vite: {
     plugins: [tailwindcss()],
   },
-  fonts: [
-    {
-      name: "Google Sans Code",
-      cssVariable: "--font-google-sans-code",
-      provider: fontProviders.google(),
-      fallbacks: ["monospace"],
-      weights: [300, 400, 500, 600, 700],
-      styles: ["normal", "italic"],
-      formats: ["woff", "ttf"],
-    },
-  ],
+  // Google Fonts 因网络不可用而禁用；使用系统字体回退
+  // fonts: [
+  //   {
+  //     name: "Google Sans Code",
+  //     cssVariable: "--font-google-sans-code",
+  //     provider: fontProviders.google(),
+  //     fallbacks: ["monospace"],
+  //     weights: [300, 400, 500, 600, 700],
+  //     styles: ["normal", "italic"],
+  //     formats: ["woff", "ttf"],
+  //   },
+  // ],
   env: {
     schema: {
       PUBLIC_GOOGLE_SITE_VERIFICATION: envField.string({
