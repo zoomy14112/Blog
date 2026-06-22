@@ -2,11 +2,13 @@
 """
 transform.py — 将 MarkdownFiles/ 下的原始篇章转化为 AstroPaper 博客文章。
 
-读取 export/Filelist.txt 中 "Main Parts" 部分列出的文件，
-将每个文件按 #### 级标题拆分为独立日记条目，
-每个条目生成一个符合 AstroPaper 主题格式的 .md 文件，
-放入 blog/src/content/posts/<系列目录>/ 中。
+- Main Parts: 按 #### 标题拆分为独立日记条目 → posts/<系列目录>/
+- Attachments: 每文件一篇独立文章 → posts/others/
+- 额外文件: Dust.md → posts/others/; Snow/release/export2html.md → posts/snow/
 
+用法:
+    cd /mnt/f/QianQiuXingChen/StarProject
+    python3 blog/transform.py
 """
 
 import os
@@ -22,12 +24,14 @@ PROJECT_ROOT = Path(__file__).resolve().parent.parent  # StarProject/
 MARKDOWN_DIR = PROJECT_ROOT / "MarkdownFiles"
 FILELIST_PATH = PROJECT_ROOT / "export" / "Filelist.txt"
 POSTS_DIR = PROJECT_ROOT / "blog" / "src" / "content" / "posts"
+EXTRA_DUST = MARKDOWN_DIR / "Dust.md"
+EXTRA_SNOW = PROJECT_ROOT / "Snow" / "release" / "export2html.md"
 
 # 北京时间 (UTC+8)
 CST = timezone(timedelta(hours=8))
 
 # ---------------------------------------------------------------------------
-# 元数据配置 — 按需修改
+# 元数据配置
 # ---------------------------------------------------------------------------
 AUTHOR = "千秋星辰"
 DEFAULT_TAGS = {
@@ -35,49 +39,63 @@ DEFAULT_TAGS = {
     "restart": ["星辰project", "restart", "随笔"],
     "fantasy": ["幻想project", "幻想", "随笔"],
 }
+ATTACHMENT_TAGS = ["others", "文章"]
 
 SERIES_TITLES = {
     "part":    "星辰project",
-    "restart": "星辰project·restart",
+    "restart": "星辰project",
     "fantasy": "幻想project",
 }
 
 # ---------------------------------------------------------------------------
 # 正则模式
 # ---------------------------------------------------------------------------
-RE_DATE_HEADING = re.compile(
-    r"^###\s+(\d{4})\.(\d{1,2})\.(\d{1,2})\s*$"
-)
+RE_DATE_HEADING = re.compile(r"^###\s+(\d{4})\.(\d{1,2})\.(\d{1,2})\s*$")
 RE_ENTRY_HEADING = re.compile(r"^####\s+(.+)$")
 RE_LATEX = re.compile(r"\$[^$]*\$")
 RE_INVALID_FILENAME_CHARS = re.compile(r'[\\/:*?"<>|$#%~{}\[\]\x00-\x1f]')
+
+# 从文本中提取中文日期：2026 年 5 月 25 日
+RE_CHINESE_DATE = re.compile(
+    r"(\d{4})\s*年\s*(\d{1,2})\s*月\s*(\d{1,2})\s*日"
+)
+# 从文本中提取年月：2026 年 5 月
+RE_CHINESE_DATE_MONTH = re.compile(
+    r"(\d{4})\s*年\s*(\d{1,2})\s*月"
+)
 
 
 # ---------------------------------------------------------------------------
 # 工具函数
 # ---------------------------------------------------------------------------
-def parse_filelist(path: Path) -> list[str]:
-    """从 Filelist.txt 中解析 Main Parts 下所列的文件名列表。"""
+def parse_filelist_sections(path: Path) -> tuple[list[str], list[str]]:
+    """解析 Filelist.txt，返回 (main_parts_files, attachments_files)。"""
     with open(path, encoding="utf-8") as f:
         lines = f.readlines()
 
-    in_main = False
-    files = []
+    main_parts: list[str] = []
+    attachments: list[str] = []
+    current: list[str] | None = None
+
     for line in lines:
         stripped = line.strip()
         if stripped == "### Main Parts":
-            in_main = True
+            current = main_parts
             continue
-        if in_main:
-            if stripped.startswith("###"):
-                break
-            if stripped.endswith(".md"):
-                files.append(stripped)
-    return files
+        if stripped == "### Attachments":
+            current = attachments
+            continue
+        if stripped.startswith("###"):
+            current = None
+            continue
+        if current is not None and stripped.endswith(".md"):
+            current.append(stripped)
+
+    return main_parts, attachments
 
 
 def classify(filename: str) -> str:
-    """根据文件名返回类别: 'part' | 'restart' | 'fantasy'。"""
+    """根据文件名返回类别。"""
     name = filename.replace(".md", "").strip().lower()
     if name.startswith("restart"):
         return "restart"
@@ -89,16 +107,16 @@ def classify(filename: str) -> str:
 
 
 def generate_slug(filename: str) -> str:
-    """根据源文件名生成子目录 slug（用作 URL 路径前缀）。"""
+    """根据源文件名生成子目录 slug。"""
     name = filename.replace(".md", "").strip()
     category = classify(name)
     m = re.match(r"(?:Part|Restart|Fantasy)\s+(\d+)", name, re.IGNORECASE)
     num = m[1] if m else "0"
 
     if category == "part":
-        return f"stars-during-lifetime-{num}"
+        return f"star-project-{num}"
     elif category == "restart":
-        return f"stars-during-lifetime-restart-{num}"
+        return f"star-project-restart-{num}"
     elif category == "fantasy":
         return f"fantasy-world-{num}"
     return re.sub(r"\s+", "-", name.lower())
@@ -106,46 +124,29 @@ def generate_slug(filename: str) -> str:
 
 def sanitize_title_for_filename(title: str) -> str:
     """将条目标题清理为安全的文件名字符串。"""
-    # 1. 先将 markdown 链接 [text](url) 替换为 text
     cleaned = re.sub(r"\[([^\]]*)\]\([^)]*\)", r"\1", title)
-    # 2. 去掉 LaTeX 公式 $...$
     cleaned = RE_LATEX.sub("", cleaned)
-    # 3. 去掉智能引号及其他特殊 Unicode 标点
-    cleaned = cleaned.replace("“", "").replace("”", "")  # ""
-    cleaned = cleaned.replace("‘", "").replace("’", "")  # ''
-    cleaned = cleaned.replace("《", "").replace("》", "")  # 《》
-    # 4. 去掉非法文件名字符
+    cleaned = cleaned.replace("“", "").replace("”", "")
+    cleaned = cleaned.replace("‘", "").replace("’", "")
+    cleaned = cleaned.replace("《", "").replace("》", "")
     cleaned = RE_INVALID_FILENAME_CHARS.sub("", cleaned)
-    # 5. 替换空白字符为连字符
     cleaned = re.sub(r"\s+", "-", cleaned)
-    # 6. 去掉首尾连字符和括号
     cleaned = cleaned.strip("-（）()")
-    # 7. 合并多余连字符
     cleaned = re.sub(r"-{2,}", "-", cleaned)
-    # 8. 限制长度（日期前缀是 11 字符 YYYY-MM-DD-）
     if len(cleaned) > 80:
         cleaned = cleaned[:80].rstrip("-")
     return cleaned
 
 
 def clean_title(title: str) -> str:
-    """清理标题：去除 Markdown 链接和 LaTeX 公式，只保留纯文本。"""
-    # 去除 Markdown 链接 [text](url) → text
+    """清理标题：去除 Markdown 链接和 LaTeX 公式。"""
     cleaned = re.sub(r"\[([^\]]*)\]\([^)]*\)", r"\1", title)
-    # 去除 LaTeX 公式 $...$
     cleaned = RE_LATEX.sub("", cleaned)
-    # 去除首尾空格
-    cleaned = cleaned.strip()
-    return cleaned
+    return cleaned.strip()
 
 
 def extract_description(text: str) -> str:
-    """从条目正文提取第一句话作为描述。
-
-    以中文句号/问号/感叹号/省略号或英文句号/问号/感叹号为句子分隔符，
-    取第一个完整句子；若超长则截断。
-    """
-    # 先取正文的第一行非空、非标题内容
+    """从正文提取第一句话作为描述。"""
     lines = text.split("\n")
     first_line = ""
     for line in lines:
@@ -162,32 +163,40 @@ def extract_description(text: str) -> str:
     if not first_line:
         return ""
 
-    # 去除 markdown 链接 URL、HTML 标签、LaTeX 公式、blockquote 标记
     cleaned = re.sub(r"\[([^\]]*)\]\([^)]*\)", r"\1", first_line)
     cleaned = re.sub(r"</?[^>]+>", "", cleaned)
     cleaned = RE_LATEX.sub("", cleaned)
-    cleaned = re.sub(r"^>\s*", "", cleaned)  # 去掉 blockquote 前缀
+    cleaned = re.sub(r"^>\s*", "", cleaned)
     cleaned = cleaned.strip()
 
-    # 按句子分隔符取第一句话
     m = re.match(r"(.*?[。！？…\.\!\?])", cleaned)
     if m:
         sentence = m[1]
     else:
-        # 没有句末标点，取前 200 字符作为一句
         sentence = cleaned[:200]
 
-    # 长度限制
     if len(sentence) > 200:
         sentence = sentence[:197] + "..."
-
     return sentence
 
 
+def extract_chinese_date(text: str) -> datetime | None:
+    """从文本中提取中文日期（2026 年 5 月 25 日 → datetime），返回最后一个。"""
+    matches = list(RE_CHINESE_DATE.finditer(text))
+    if not matches:
+        # 尝试只匹配年月，默认日 = 1
+        matches_month = list(RE_CHINESE_DATE_MONTH.finditer(text))
+        if matches_month:
+            m = matches_month[-1]
+            return datetime(int(m[1]), int(m[2]), 1, tzinfo=CST)
+        return None
+    m = matches[-1]
+    return datetime(int(m[1]), int(m[2]), int(m[3]), tzinfo=CST)
+
+
 def yaml_single_quote(s: str) -> str:
-    """将字符串转为 YAML 单引号字面量，避免反斜杠被解释为转义序列。"""
-    escaped = s.replace("'", "''")
-    return f"'{escaped}'"
+    """将字符串转为 YAML 单引号字面量。"""
+    return f"'{s.replace("'", "''")}'"
 
 
 def build_frontmatter(title: str, pub_datetime: datetime,
@@ -213,17 +222,10 @@ description: {yaml_single_quote(desc)}
 
 
 # ---------------------------------------------------------------------------
-# 核心：将单个源文件拆分为日记条目
+# 核心 1：日记条目拆分（Main Parts）
 # ---------------------------------------------------------------------------
 def split_into_entries(raw: str) -> list[dict]:
-    """将原始文本按 #### 标题拆分为独立日记条目列表。
-
-    每条目 dict 包含:
-        date:       datetime  — 所属日期（从最近一个 ### 日期标题继承）
-        title:      str       — 条目标题（#### 后的文本）
-        body:       str       — 条目正文（含 #### 标题行，不含 ### 日期行）
-        first_line: int      — 在原文中的起始行号（用于诊断）
-    """
+    """将原始文本按 #### 标题拆分为独立日记条目列表。"""
     lines = raw.split("\n")
     entries: list[dict] = []
     current_date: datetime | None = None
@@ -233,7 +235,6 @@ def split_into_entries(raw: str) -> list[dict]:
     def flush_entry():
         nonlocal current_title, current_buf
         if current_title is not None:
-            # 去掉首尾空行
             while current_buf and current_buf[0].strip() == "":
                 current_buf.pop(0)
             while current_buf and current_buf[-1].strip() == "":
@@ -248,7 +249,6 @@ def split_into_entries(raw: str) -> list[dict]:
         current_buf = []
 
     for line in lines:
-        # 检测日期行（匹配 ### YYYY.M.D）
         m_date = RE_DATE_HEADING.match(line)
         if m_date:
             flush_entry()
@@ -256,21 +256,17 @@ def split_into_entries(raw: str) -> list[dict]:
             current_date = datetime(y, mo, d, tzinfo=CST)
             continue
 
-        # 检测条目分隔行（所有 ### 开头的行，包括非标准日期如 ### ？）
-        # 均视为节分隔：不更新日期，但刷新当前条目，避免分隔符混入正文
         if line.startswith("### "):
             flush_entry()
             continue
 
-        # 检测条目标题行
         m_entry = RE_ENTRY_HEADING.match(line)
         if m_entry:
             flush_entry()
             current_title = m_entry[1].strip()
-            current_buf = []  # 标题已写入 frontmatter，正文不再保留
+            current_buf = []
             continue
 
-        # 普通行：追加到当前条目缓冲区
         if current_title is not None:
             current_buf.append(line)
 
@@ -279,7 +275,7 @@ def split_into_entries(raw: str) -> list[dict]:
 
 
 def clean_entry_body(body: str) -> str:
-    """清理单条目正文：移除末尾的 --- 分隔线和洛谷返回链接。"""
+    """清理单条目正文。"""
     body = re.sub(
         r"\n*---\n\n\[.*?返回.*?\]\(https://www\.luogu\.com\.cn/blog/guan-xing-ge/.*?\)\s*$",
         "",
@@ -290,13 +286,115 @@ def clean_entry_body(body: str) -> str:
 
 
 # ---------------------------------------------------------------------------
-# 单文件转化（拆分版本）
+# 核心 2：独立文章处理（Attachments + Dust + Snow）
 # ---------------------------------------------------------------------------
-def transform_file(filename: str) -> tuple[str, list[tuple[str, str, datetime]]] | None:
-    """将单个源文件拆分为多条目，返回 (子目录名, [(文件名, 内容, 日期), ...])。"""
+def transform_standalone(src_path: Path, tags: list[str],
+                         default_date: datetime | None = None
+                         ) -> tuple[str, str, datetime] | None:
+    """将单篇独立文章转化为一个 .md 文件。
+
+    返回 (文件名, 内容, 日期)，或 None。
+    """
+    if not src_path.exists():
+        print(f"  ⚠ 文件不存在: {src_path}")
+        return None
+
+    with open(src_path, encoding="utf-8") as f:
+        raw = f.read()
+
+    # 检查是否已有 YAML frontmatter
+    existing_title = None
+    body = raw
+    if raw.startswith("---"):
+        parts = raw.split("---", 2)
+        if len(parts) >= 3:
+            # 解析已有 frontmatter 中的 title
+            fm_text = parts[1]
+            m = re.search(r'^title:\s*(.+)$', fm_text, re.MULTILINE)
+            if m:
+                existing_title = m[1].strip().strip('"').strip("'")
+            body = parts[2].strip() + "\n"
+
+    # 提取标题
+    if existing_title:
+        title = clean_title(existing_title)
+    else:
+        # 从第一个 ### 标题提取
+        m = re.search(r"^###\s+(.+)$", body, re.MULTILINE)
+        title = clean_title(m[1].strip()) if m else src_path.stem
+
+    # 提取日期：优先中文日期，其次文本末尾日期，再次默认值
+    date = extract_chinese_date(body) or extract_chinese_date(raw)
+    description = extract_description(body)
+
+    # 文件名（others 目录下不含日期前缀）
+    title_slug = sanitize_title_for_filename(title)
+    if not title_slug:
+        title_slug = re.sub(r"\s+", "-", src_path.stem.lower())
+    file_name = f"{title_slug}.md"
+
+    fm = build_frontmatter(title, date, description, tags)
+    output_content = fm + body
+
+    return file_name, output_content, date
+
+
+def transform_standalone_article(src_path: Path, tags: list[str],
+                                 default_date: datetime | None = None
+                                 ) -> tuple[str, str, datetime] | None:
+    """处理 MarkdownFiles/ 下的附件文章：无 frontmatter，以 ### 标题开头。
+
+    去掉开头的 ### 标题行（已写入 frontmatter title）。
+    """
+    if not src_path.exists():
+        print(f"  ⚠ 文件不存在: {src_path}")
+        return None
+
+    with open(src_path, encoding="utf-8") as f:
+        raw = f.read()
+
+    # 提取第一个 ### 标题
+    m = re.search(r"^###\s+(.+)$", raw, re.MULTILINE)
+    title = clean_title(m[1].strip()) if m else src_path.stem
+
+    # 去掉第一个 ### 标题行及其前面的空行
+    if m:
+        body = raw[:m.start()] + raw[m.end():]
+        body = body.strip() + "\n"
+    else:
+        body = raw
+
+    # 提取日期
+    date = extract_chinese_date(body) or extract_chinese_date(raw)
+    if date is None:
+        date = default_date
+    if date is None:
+        # fallback: 文件修改时间
+        mtime = os.path.getmtime(src_path)
+        date = datetime.fromtimestamp(mtime, tz=CST)
+
+    description = extract_description(body)
+
+    # 文件名（others 目录下不含日期前缀）
+    title_slug = sanitize_title_for_filename(title)
+    if not title_slug:
+        title_slug = re.sub(r"\s+", "-", src_path.stem.lower())
+    file_name = f"{title_slug}.md"
+
+    fm = build_frontmatter(title, date, description, tags)
+    output_content = fm + body
+
+    return file_name, output_content, date
+
+
+# ---------------------------------------------------------------------------
+# Main Parts 转化（拆分版）
+# ---------------------------------------------------------------------------
+def transform_diary_file(filename: str) -> tuple[str, list[tuple[str, str, datetime]]] | None:
+    """处理 Main Parts 中的日记文件。"""
     src_path = MARKDOWN_DIR / filename
     if not src_path.exists():
-        print(f"  ⚠ 跳过不存在的文件: {src_path}")
+        print(f"  ⚠ 跳过: {src_path}")
         return None
 
     with open(src_path, encoding="utf-8") as f:
@@ -308,55 +406,43 @@ def transform_file(filename: str) -> tuple[str, list[tuple[str, str, datetime]]]
 
     entries = split_into_entries(raw)
     if not entries:
-        print(f"  ⚠ 未找到任何日记条目: {filename}")
+        print(f"  ⚠ 未找到条目: {filename}")
         return None
 
     files: list[tuple[str, str, datetime]] = []
-    used_names: dict[str, int] = {}  # 用于处理同名文件
+    used_names: dict[str, int] = {}
 
     for i, entry in enumerate(entries):
         date = entry["date"]
         title = entry["title"]
         body = clean_entry_body(entry["body"])
 
-        # 时间戳
         if date is None:
-            # 如果没有日期（全部源文件第一个 ### 前无内容的情况），
-            # 使用上一个条目的日期；若为首个则回退到文件修改时间
             if files:
                 date = files[-1][2]
             else:
                 mtime = os.path.getmtime(src_path)
                 date = datetime.fromtimestamp(mtime, tz=CST)
-                print(f"  ⚠ 首个条目无日期，使用文件修改时间: {title}")
 
-        # 描述
         description = extract_description(body)
-
-        # 清理标题中的 Markdown/LateX 格式（frontmatter 中无法渲染）
         clean = clean_title(title)
 
-        # 文件名：日期-标题
         title_slug = sanitize_title_for_filename(clean)
         if not title_slug:
             title_slug = f"entry-{i + 1:03d}"
         date_prefix = date.strftime("%Y-%m-%d")
         base_name = f"{date_prefix}-{title_slug}"
 
-        # 处理同名冲突
         if base_name in used_names:
             used_names[base_name] += 1
             file_name = f"{base_name}-{used_names[base_name]}"
         else:
             used_names[base_name] = 0
             file_name = base_name
-
         file_name += ".md"
 
-        # 构建输出内容
         fm = build_frontmatter(clean, date, description, tags)
         output_content = fm + body
-
         files.append((file_name, output_content, date))
 
     return dir_slug, files
@@ -367,20 +453,25 @@ def transform_file(filename: str) -> tuple[str, list[tuple[str, str, datetime]]]
 # ---------------------------------------------------------------------------
 def main():
     print("=" * 60)
-    print("  AstroPaper 博客文章转化脚本（拆分版）")
+    print("  AstroPaper 博客文章转化脚本")
     print("=" * 60)
     print()
 
-    # 1. 解析文件列表
     if not FILELIST_PATH.exists():
-        print(f" Filelist 不存在: {FILELIST_PATH}")
+        print(f"❌ Filelist 不存在: {FILELIST_PATH}")
         return 1
 
-    files = parse_filelist(FILELIST_PATH)
-    print(f" 从 Filelist.txt 读取到 {len(files)} 个文件")
+    main_files, attachment_files = parse_filelist_sections(FILELIST_PATH)
+    print(f"📄 Main Parts: {len(main_files)} 个文件")
+    for f in main_files:
+        print(f"    - {f}")
+    print(f"📄 Attachments: {len(attachment_files)} 个文件")
+    for f in attachment_files:
+        print(f"    - {f}")
+    print(f"📄 额外: Dust.md, Snow/release/export2html.md")
     print()
 
-    # 2. 清理旧的平铺文件和子目录（上次运行可能生成的）
+    # 清理旧目录
     old_dirs = [
         "stars-during-lifetime-1", "stars-during-lifetime-2",
         "stars-during-lifetime-3", "stars-during-lifetime-4",
@@ -388,16 +479,20 @@ def main():
         "stars-during-lifetime-7",
         "stars-during-lifetime-restart-1", "stars-during-lifetime-restart-2",
         "stars-during-lifetime-restart-3",
+        "star-project-1", "star-project-2", "star-project-3",
+        "star-project-4", "star-project-5", "star-project-6",
+        "star-project-7",
+        "star-project-restart-1", "star-project-restart-2",
+        "star-project-restart-3",
         "fantasy-world-1", "fantasy-world-2",
+        "others", "snow",
     ]
     cleaned = 0
     for name in old_dirs:
-        # 清理平铺文件
         fp = POSTS_DIR / f"{name}.md"
         if fp.exists():
             fp.unlink()
             cleaned += 1
-        # 清理子目录
         dp = POSTS_DIR / name
         if dp.exists() and dp.is_dir():
             shutil.rmtree(dp)
@@ -406,43 +501,82 @@ def main():
         print(f"🧹 清理了 {cleaned} 个旧文件/目录")
         print()
 
-    # 3. 逐个源文件转化
     total_entries = 0
     total_written = 0
-    total_skipped = 0
 
-    for filename in files:
-        print(f"🔄 处理: {filename}")
-        result = transform_file(filename)
-        if result is None:
-            continue
-
-        dir_slug, entry_files = result
-        dir_path = POSTS_DIR / dir_slug
+    def write_files(dir_path: Path, entry_files: list[tuple[str, str, datetime]]):
+        nonlocal total_entries, total_written
         dir_path.mkdir(parents=True, exist_ok=True)
-
         for fname, content, _date in entry_files:
             output_path = dir_path / fname
-
             if output_path.exists():
                 with open(output_path, encoding="utf-8") as f:
-                    old = f.read()
-                if old == content:
-                    total_skipped += 1
-                    total_entries += 1
-                    continue
-
+                    if f.read() == content:
+                        total_entries += 1
+                        continue
             with open(output_path, "w", encoding="utf-8") as f:
                 f.write(content)
             total_written += 1
             total_entries += 1
 
-        print(f"  ✓ → {dir_slug}/  ({len(entry_files)} 个条目)")
+    # ---- Main Parts ----
+    print(">>> Main Parts")
+    for filename in main_files:
+        print(f"  🔄 {filename}", end="")
+        result = transform_diary_file(filename)
+        if result is None:
+            print("  ⚠ 跳过")
+            continue
+        dir_slug, entry_files = result
+        write_files(POSTS_DIR / dir_slug, entry_files)
+        print(f" → {dir_slug}/ ({len(entry_files)} entries)")
+
+    # ---- Attachments ----
+    print()
+    print(">>> Attachments")
+    # 这些文件的日期记录在 Overview.md 中，文件本身无时间戳
+    ATTACHMENT_DATES = {
+        "Thelema 1.md": datetime(2023, 12, 16, tzinfo=CST),
+        "Thelema 2.md": datetime(2023,  9, 30, tzinfo=CST),
+        "Thelema 3.md": datetime(2024,  4, 27, tzinfo=CST),
+        "ForLogic.md":  datetime(2023,  3, 18, tzinfo=CST),
+        "Nirvana.md":   datetime(2024,  1,  1, tzinfo=CST),
+    }
+    others_dir = POSTS_DIR / "others"
+    for filename in attachment_files:
+        src_path = MARKDOWN_DIR / filename
+        default_date = ATTACHMENT_DATES.get(filename)
+        print(f"  🔄 {filename}", end="")
+        result = transform_standalone_article(src_path, ATTACHMENT_TAGS,
+                                              default_date=default_date)
+        if result is None:
+            print("  ⚠ 跳过")
+            continue
+        write_files(others_dir, [result])
+        print(f" → others/{result[0]}")
+
+    # ---- Dust.md ----
+    print()
+    print(">>> 额外文件")
+    print(f"  🔄 Dust.md", end="")
+    result = transform_standalone(EXTRA_DUST, ["小说", "尘"],
+                                  default_date=datetime(2026, 5, 25, tzinfo=CST))
+    if result:
+        write_files(others_dir, [result])
+        print(f" → others/{result[0]}")
+
+    # ---- Snow/release/export2html.md ----
+    print(f"  🔄 Snow/release/export2html.md", end="")
+    result = transform_standalone(EXTRA_SNOW, ["小说", "孤灯夜雪"],
+                                  default_date=datetime(2026, 5, 1, tzinfo=CST))
+    if result:
+        write_files(others_dir, [result])
+        print(f" → others/{result[0]}")
 
     print()
-    print(f"✅ 完成！共 {total_entries} 个日记条目")
-    print(f"   新写入: {total_written}  跳过(未变): {total_skipped}")
-    print(f"   输出目录: {POSTS_DIR}/<系列目录>/")
+    print(f"✅ 完成！共 {total_entries} 个条目")
+    print(f"   新写入: {total_written}")
+    print(f"   输出目录: {POSTS_DIR}/")
     return 0
 
 
