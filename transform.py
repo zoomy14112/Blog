@@ -35,8 +35,8 @@ CST = timezone(timedelta(hours=8))
 # ---------------------------------------------------------------------------
 AUTHOR = "千秋星辰"
 DEFAULT_TAGS = {
-    "part":    ["星辰project", "随笔"],
-    "restart": ["星辰project", "restart", "随笔"],
+    "part":    ["星辰project", "高三", "随笔"],
+    "restart": ["星辰project", "重启", "随笔"],
     "fantasy": ["幻想project", "幻想", "随笔"],
 }
 ATTACHMENT_TAGS = ["others", "文章"]
@@ -464,17 +464,17 @@ def main():
     print()
 
     if not FILELIST_PATH.exists():
-        print(f"❌ Filelist 不存在: {FILELIST_PATH}")
+        print(f"Filelist 不存在: {FILELIST_PATH}")
         return 1
 
     main_files, attachment_files = parse_filelist_sections(FILELIST_PATH)
-    print(f"📄 Main Parts: {len(main_files)} 个文件")
+    print(f"Main Parts: {len(main_files)} 个文件")
     for f in main_files:
         print(f"    - {f}")
-    print(f"📄 Attachments: {len(attachment_files)} 个文件")
+    print(f"Attachments: {len(attachment_files)} 个文件")
     for f in attachment_files:
         print(f"    - {f}")
-    print(f"📄 额外: Dust.md, Snow/release/export2html.md")
+    print(f"额外: Dust.md, Snow/release/export2html.md")
     print()
 
     # 清理旧目录
@@ -504,7 +504,7 @@ def main():
             shutil.rmtree(dp)
             cleaned += 1
     if cleaned:
-        print(f"🧹 清理了 {cleaned} 个旧文件/目录")
+        print(f"清理了 {cleaned} 个旧文件/目录")
         print()
 
     total_entries = 0
@@ -556,7 +556,7 @@ def main():
         result = transform_standalone_article(src_path, ATTACHMENT_TAGS,
                                               default_date=default_date)
         if result is None:
-            print("  ⚠ 跳过")
+            print("跳过")
             continue
         write_files(others_dir, [result])
         print(f" → others/{result[0]}")
@@ -564,7 +564,7 @@ def main():
     # ---- Dust.md ----
     print()
     print(">>> 额外文件")
-    print(f"  🔄 Dust.md", end="")
+    print(f"Dust.md", end="")
     result = transform_standalone(EXTRA_DUST, ["小说", "尘"],
                                   default_date=datetime(2026, 5, 25, tzinfo=CST))
     if result:
@@ -572,7 +572,7 @@ def main():
         print(f" → others/{result[0]}")
 
     # ---- Snow/release/export2html.md ----
-    print(f"  🔄 Snow/release/export2html.md", end="")
+    print(f"Snow/release/export2html.md", end="")
     result = transform_standalone(EXTRA_SNOW, ["小说", "孤灯夜雪"],
                                   default_date=datetime(2026, 5, 1, tzinfo=CST))
     if result:

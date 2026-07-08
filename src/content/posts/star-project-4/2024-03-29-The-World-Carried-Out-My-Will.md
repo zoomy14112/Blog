@@ -6,6 +6,7 @@ featured: false
 draft: false
 tags:
   - 星辰project
+  - 高三
   - 随笔
 description: 'I don''t know when the thought emerged, but it is clear: I hoped to become her desk mate.'
 ---

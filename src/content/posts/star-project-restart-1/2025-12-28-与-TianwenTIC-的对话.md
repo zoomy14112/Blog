@@ -6,7 +6,7 @@ featured: false
 draft: false
 tags:
   - 星辰project
-  - restart
+  - 重启
   - 随笔
 description: '在风雨体育馆打完乒乓球后，我和 TianwenTIC 坐在旁边的座位上休息。'
 ---

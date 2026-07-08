@@ -6,6 +6,7 @@ featured: false
 draft: false
 tags:
   - 星辰project
+  - 高三
   - 随笔
 description: '我有一个 64 级的学弟，他自认为他语文学不好。'
 ---

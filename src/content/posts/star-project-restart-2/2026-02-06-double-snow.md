@@ -6,7 +6,7 @@ featured: false
 draft: false
 tags:
   - 星辰project
-  - restart
+  - 重启
   - 随笔
 description: '今天是各大高校一同返校宣讲的日子。'
 ---
