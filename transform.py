@@ -35,7 +35,7 @@ CST = timezone(timedelta(hours=8))
 # ---------------------------------------------------------------------------
 AUTHOR = "千秋星辰"
 DEFAULT_TAGS = {
-    "part":    ["星辰project", "高三", "随笔"],
+    "part":    ["星辰project", "随笔"],
     "restart": ["星辰project", "重启", "随笔"],
     "fantasy": ["幻想project", "幻想", "随笔"],
 }
@@ -489,7 +489,7 @@ def main():
         "star-project-4", "star-project-5", "star-project-6",
         "star-project-7",
         "star-project-restart-1", "star-project-restart-2",
-        "star-project-restart-3",
+        "star-project-restart-3", "star-project-restart-4",
         "fantasy-world-1", "fantasy-world-2",
         "others", "snow",
     ]
