@@ -37,6 +37,7 @@ AUTHOR = "千秋星辰"
 DEFAULT_TAGS = {
     "part":    ["星辰project", "随笔"],
     "restart": ["星辰project", "重启", "随笔"],
+    "newera":  ["星辰project", "新纪元", "随笔"],
     "fantasy": ["幻想project", "幻想", "随笔"],
 }
 ATTACHMENT_TAGS = ["others", "文章"]
@@ -44,6 +45,7 @@ ATTACHMENT_TAGS = ["others", "文章"]
 SERIES_TITLES = {
     "part":    "星辰project",
     "restart": "星辰project",
+    "newera":  "星辰project",
     "fantasy": "幻想project",
 }
 
@@ -99,6 +101,8 @@ def classify(filename: str) -> str:
     name = filename.replace(".md", "").strip().lower()
     if name.startswith("restart"):
         return "restart"
+    if name.startswith("newera"):
+        return "newera"
     if name.startswith("fantasy"):
         return "fantasy"
     if name.startswith("part"):
@@ -110,13 +114,15 @@ def generate_slug(filename: str) -> str:
     """根据源文件名生成子目录 slug。"""
     name = filename.replace(".md", "").strip()
     category = classify(name)
-    m = re.match(r"(?:Part|Restart|Fantasy)\s+(\d+)", name, re.IGNORECASE)
+    m = re.match(r"(?:Part|Restart|NewEra|Fantasy)\s+(\d+)", name, re.IGNORECASE)
     num = m[1] if m else "0"
 
     if category == "part":
         return f"star-project-{num}"
     elif category == "restart":
         return f"star-project-restart-{num}"
+    elif category == "newera":
+        return f"newera-{num}"
     elif category == "fantasy":
         return f"fantasy-world-{num}"
     return re.sub(r"\s+", "-", name.lower())
@@ -484,12 +490,13 @@ def main():
         "stars-during-lifetime-5", "stars-during-lifetime-6",
         "stars-during-lifetime-7",
         "stars-during-lifetime-restart-1", "stars-during-lifetime-restart-2",
-        "stars-during-lifetime-restart-3",
+        "stars-during-lifetime-restart-3", "star-project-0",
         "star-project-1", "star-project-2", "star-project-3",
         "star-project-4", "star-project-5", "star-project-6",
         "star-project-7",
         "star-project-restart-1", "star-project-restart-2",
-        "star-project-restart-3", "newera-1",
+        "star-project-restart-3", "star-project-restart-4",
+        "newera-1",
         "fantasy-world-1", "fantasy-world-2",
         "others", "snow",
     ]
