@@ -489,7 +489,7 @@ def main():
         "star-project-4", "star-project-5", "star-project-6",
         "star-project-7",
         "star-project-restart-1", "star-project-restart-2",
-        "star-project-restart-3", "star-project-restart-4",
+        "star-project-restart-3", "newera-1",
         "fantasy-world-1", "fantasy-world-2",
         "others", "snow",
     ]
